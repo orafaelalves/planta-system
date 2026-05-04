@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Meu Terreno 3D</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { overflow:hidden; font-family:'Segoe UI',sans-serif; background:#0f172a; }
+#app { display:flex; height:100vh; }
+
+#sidebar {
+  width:230px; background:#1e293b; color:#e2e8f0; display:flex;
+  flex-direction:column; flex-shrink:0; box-shadow:2px 0 14px rgba(0,0,0,.6);
+}
+.tabs { display:flex; background:#0f172a; }
+.tab {
+  flex:1; padding:10px 2px; text-align:center; cursor:pointer; font-size:9px;
+  color:#64748b; border:none; background:none; font-weight:700;
+  text-transform:uppercase; letter-spacing:.4px;
+  border-bottom:2px solid transparent; margin-bottom:-1px; transition:all .15s;
+}
+.tab.active { color:#38bdf8; border-bottom-color:#38bdf8; }
+.tab-content { display:none; flex:1; overflow-y:auto; padding:10px; flex-direction:column; gap:5px; }
+.tab-content.active { display:flex; }
+
+.info  { background:#0f172a; border-radius:8px; padding:8px 10px; font-size:11px; color:#94a3b8; line-height:1.85; }
+.sep   { height:1px; background:#334155; margin:2px 0; flex-shrink:0; }
+.stitle { font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.7px; margin-top:2px; }
+
+.btn {
+  display:flex; align-items:center; gap:7px; padding:8px 10px;
+  background:#0f172a; border:2px solid transparent; border-radius:8px;
+  color:#e2e8f0; cursor:pointer; font-size:12px; width:100%; text-align:left;
+  transition:all .15s; flex-shrink:0;
+}
+.btn:hover  { border-color:#3b82f6; background:#172a4a; }
+.btn.active { border-color:#3b82f6; background:#1d4ed8; color:#fff; }
+.btn.red    { color:#fca5a5; }
+.btn.red:hover  { border-color:#ef4444; background:#7f1d1d; }
+.btn.red.active { border-color:#ef4444; background:#dc2626; color:#fff; }
+.btn .ico { font-size:15px; width:18px; text-align:center; flex-shrink:0; }
+
+.row2 { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+.inp-row { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+input[type=number] {
+  background:#0f172a; border:2px solid #334155; border-radius:6px;
+  color:#e2e8f0; padding:7px 8px; font-size:12px; width:100%; outline:none;
+  transition:border-color .15s;
+}
+input[type=number]:focus { border-color:#3b82f6; }
+input[type=number]::placeholder { color:#475569; }
+label { font-size:10px; color:#64748b; margin-bottom:2px; display:block; }
+
+.zone-pill {
+  display:flex; align-items:center; gap:7px; padding:8px 10px;
+  border-radius:8px; border:2px solid transparent; cursor:pointer;
+  font-size:12px; width:100%; background:#0f172a; color:#e2e8f0;
+  transition:all .15s; flex-shrink:0;
+}
+.zone-pill:hover { opacity:.85; border-color:#ffffff40; }
+.zone-pill.active { border-color:#fff8; }
+.zone-dot { width:14px; height:14px; border-radius:3px; flex-shrink:0; }
+
+/* canvas wrap */
+#wrap { flex:1; position:relative; overflow:hidden; }
+canvas { display:block; width:100%; height:100%; cursor:crosshair; }
+canvas.orbit-cursor { cursor:grab; }
+canvas.drag-cursor  { cursor:move; }
+
+/* overlays */
+#mlabels { position:absolute; inset:0; pointer-events:none; }
+.mlabel {
+  position:absolute; transform:translate(-50%,-50%);
+  background:rgba(0,0,0,.82); color:#ffd700; font-size:11px; font-weight:700;
+  padding:2px 7px; border-radius:4px; white-space:nowrap;
+  border:1px solid rgba(255,215,0,.35);
+}
+.zlabel {
+  position:absolute; transform:translate(-50%,-50%);
+  background:rgba(0,0,0,.7); color:#fff; font-size:10px; font-weight:600;
+  padding:1px 6px; border-radius:10px; white-space:nowrap; pointer-events:none;
+}
+#topbar {
+  position:absolute; top:10px; left:50%; transform:translateX(-50%);
+  background:rgba(0,0,0,.75); color:#e2e8f0; padding:6px 16px;
+  border-radius:20px; font-size:11px; pointer-events:none; white-space:nowrap;
+}
+#statusbar {
+  position:absolute; top:44px; left:50%; transform:translateX(-50%);
+  background:rgba(59,130,246,.9); color:#fff; padding:4px 14px;
+  border-radius:12px; font-size:11px; display:none; pointer-events:none;
+}
+#hint {
+  position:absolute; bottom:12px; right:12px;
+  background:rgba(0,0,0,.65); color:#94a3b8;
+  padding:8px 12px; border-radius:8px; font-size:10px; line-height:1.8;
+}
+#posbar {
+  position:absolute; bottom:12px; left:12px;
+  background:rgba(0,0,0,.65); color:#e2e8f0;
+  padding:8px 12px; border-radius:8px; font-size:10px;
+}
+#navbtn {
+  position:absolute; top:10px; right:12px;
+  padding:8px 14px; border-radius:20px; border:none; cursor:pointer;
+  font-size:12px; font-weight:700; transition:all .2s;
+  background:rgba(59,130,246,.92); color:#fff;
+  box-shadow:0 2px 10px rgba(0,0,0,.4);
+  user-select:none;
+}
+#navbtn:hover { filter:brightness(1.15); }
+#navbtn.edit-mode { background:rgba(34,197,94,.92); }
+</style>
+</head>
+<body>
+<div id="app">
+
+<div id="sidebar">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('terrain',this)">🗺️ Terreno</button>
+    <button class="tab" onclick="switchTab('zones',this)">🎨 Zonas</button>
+    <button class="tab" onclick="switchTab('elements',this)">🏠 Objetos</button>
+  </div>
+
+  <!-- ── TAB TERRENO ── -->
+  <div id="tab-terrain" class="tab-content active">
+    <div class="stitle">Criar retângulo base</div>
+    <div class="inp-row">
+      <div><label>Largura (m)</label><input type="number" id="rw" value="25" min="1" max="500"></div>
+      <div><label>Profund. (m)</label><input type="number" id="rd" value="40" min="1" max="500"></div>
+    </div>
+    <button class="btn" onclick="setupRect()"><span class="ico">📐</span>Criar retângulo</button>
+
+    <div class="sep"></div>
+    <div class="stitle">Editar contorno</div>
+    <div class="info" style="font-size:10px;color:#475569;line-height:1.75">
+      • Arraste qualquer ponto ◉ para mover<br>
+      • Clique no terreno para adicionar ponto<br>
+      • Clique próximo ao 1° ponto para fechar<br>
+      • Duplo-clique fecha o terreno
+    </div>
+    <button class="btn" onclick="closeTerrain()"><span class="ico">✅</span>Fechar terreno</button>
+    <button class="btn" onclick="undoPoint()"><span class="ico">↩️</span>Desfazer ponto</button>
+    <button class="btn red" onclick="resetTerrain()"><span class="ico">🔄</span>Reiniciar tudo</button>
+
+    <div class="sep"></div>
+    <div class="info" id="terrain-stats">Sem terreno definido.</div>
+  </div>
+
+  <!-- ── TAB ZONAS ── -->
+  <div id="tab-zones" class="tab-content">
+    <div class="info" style="font-size:10px;color:#475569;line-height:1.75">
+      Selecione um tipo e arraste para criar uma zona. Clique numa zona para selecionar e editar os cantos.
+    </div>
+    <div class="stitle">Tipo de zona</div>
+    <button class="zone-pill" id="zp-mata"  onclick="setZT(this,'mata')" >
+      <div class="zone-dot" style="background:#1a5a00"></div>Mata nativa</button>
+    <button class="zone-pill" id="zp-limpo" onclick="setZT(this,'limpo')">
+      <div class="zone-dot" style="background:#4aaa1a"></div>Área limpa</button>
+    <button class="zone-pill" id="zp-agua"  onclick="setZT(this,'agua')" >
+      <div class="zone-dot" style="background:#005f8a"></div>Lago / Água</button>
+    <div class="sep"></div>
+    <div id="zone-sel-panel" style="display:none">
+      <div class="stitle">Zona selecionada</div>
+      <div class="info" id="zone-sel-info"></div>
+      <button class="btn red" onclick="deleteSelectedZone()"><span class="ico">🗑️</span>Remover zona</button>
+    </div>
+    <button class="btn" onclick="clearZones()"><span class="ico">🔄</span>Limpar todas as zonas</button>
+    <div class="info" style="font-size:10px;color:#475569;margin-top:4px;line-height:1.7">
+      Arraste um canto laranja para redimensionar. ESC = deselecionar.
+    </div>
+  </div>
+
+  <!-- ── TAB OBJETOS ── -->
+  <div id="tab-elements" class="tab-content">
+    <div class="stitle">🏠 Casas</div>
+    <button class="btn" onclick="setTool(this,'house-alv')"      ><span class="ico">🏠</span>Alvenaria moderna</button>
+    <button class="btn" onclick="setTool(this,'house-chale')"    ><span class="ico">🏡</span>Chalé de madeira</button>
+    <button class="btn" onclick="setTool(this,'house-container')"><span class="ico">📦</span>Casa container</button>
+    <button class="btn" onclick="setTool(this,'house-trad')"     ><span class="ico">🏘️</span>Casa térrea trad.</button>
+    <div class="sep"></div>
+    <div class="stitle">🌿 Natureza</div>
+    <button class="btn" onclick="setTool(this,'tree')"   ><span class="ico">🌳</span>Árvore</button>
+    <button class="btn" onclick="setTool(this,'palm')"   ><span class="ico">🌴</span>Palmeira</button>
+    <button class="btn" onclick="setTool(this,'orchard')"><span class="ico">🍎</span>Pomar 3×3</button>
+    <button class="btn" onclick="setTool(this,'garden')" ><span class="ico">🌺</span>Jardim</button>
+    <div class="sep"></div>
+    <div class="stitle">🏗️ Estruturas</div>
+    <button class="btn" onclick="setTool(this,'shed')" ><span class="ico">🏗️</span>Galpão</button>
+    <button class="btn" onclick="setTool(this,'pool')" ><span class="ico">🏊</span>Piscina</button>
+    <button class="btn" onclick="setTool(this,'fence')"><span class="ico">🪵</span>Cerca 4m</button>
+    <button class="btn" onclick="setTool(this,'path')" ><span class="ico">🛤️</span>Caminho</button>
+    <button class="btn" onclick="setTool(this,'tank')" ><span class="ico">🗄️</span>Caixa d'água</button>
+    <div class="sep"></div>
+    <button class="btn red" onclick="setTool(this,'delete')"><span class="ico">🗑️</span>Remover elemento</button>
+    <button class="btn" onclick="clearElements()"><span class="ico">🔄</span>Limpar elementos</button>
+    <div class="sep"></div>
+    <div class="stitle">Câmera</div>
+    <div class="row2">
+      <button class="btn" onclick="camV('top')" ><span class="ico">🗺️</span>Superior</button>
+      <button class="btn" onclick="camV('persp')"><span class="ico">👁️</span>3D</button>
+      <button class="btn" onclick="camV('iso')" ><span class="ico">📐</span>Iso</button>
+      <button class="btn" onclick="rotLast(-45)"><span class="ico">↺</span>-45°</button>
+    </div>
+  </div>
+</div><!-- /sidebar -->
+
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div id="mlabels"></div>
+  <div id="topbar">Crie um retângulo base ou clique para adicionar pontos ao terreno</div>
+  <div id="statusbar"></div>
+  <button id="navbtn" onclick="toggleNav()">🔓 Navegando</button>
+  <div id="hint" style="display:none"></div>
+  <div id="posbar"><span id="postext">—</span></div>
+</div>
+</div><!-- /app -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════
+//  RENDERER / SCENE
+// ══════════════════════════════════════════════════════
+const canvas   = document.getElementById('c');
+const wrap     = document.getElementById('wrap');
+const mlabels  = document.getElementById('mlabels');
+const posText  = document.getElementById('postext');
+const statusBar= document.getElementById('statusbar');
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+scene.fog = new THREE.FogExp2(0x87ceeb, 0.007);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 800);
+
+function resize() {
+  const w=wrap.clientWidth, h=wrap.clientHeight;
+  renderer.setSize(w,h);
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+}
+resize();
+new ResizeObserver(resize).observe(wrap);
+
+// Lights
+scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+const sun = new THREE.DirectionalLight(0xffd580, 1.3);
+sun.position.set(25, 55, 20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera,{left:-120,right:120,top:120,bottom:-120,near:1,far:300});
+scene.add(sun);
+
+// Base ground
+const baseGnd = new THREE.Mesh(
+  new THREE.PlaneGeometry(800,800),
+  new THREE.MeshLambertMaterial({color:0x2a3a1a})
+);
+baseGnd.rotation.x = -Math.PI/2; baseGnd.position.y=-0.02; baseGnd.receiveShadow=true;
+scene.add(baseGnd);
+
+// Grid
+const gridH = new THREE.GridHelper(400, 400, 0x000000, 0x000000);
+gridH.position.y=0.01; gridH.material.opacity=0.07; gridH.material.transparent=true;
+scene.add(gridH);
+
+// ══════════════════════════════════════════════════════
+//  CAMERA ORBIT  (right-button only)
+// ══════════════════════════════════════════════════════
+const sph    = {th:0.55, ph:1.05, r:80};   // valores atuais (suavizados)
+const tSph   = {th:0.55, ph:1.05, r:80};   // valores-alvo (mouse/eventos)
+const tgt    = new THREE.Vector3(0,0,0);
+const tgtTgt = new THREE.Vector3(0,0,0);    // target de pan suavizado
+const DAMP   = 0.10;                        // fator de suavização (0=parado, 1=instantâneo)
+
+function camUpdate() {
+  camera.position.set(
+    tgt.x + sph.r*Math.sin(sph.ph)*Math.sin(sph.th),
+    tgt.y + sph.r*Math.cos(sph.ph),
+    tgt.z + sph.r*Math.sin(sph.ph)*Math.cos(sph.th)
+  );
+  camera.lookAt(tgt);
+}
+camUpdate();
+
+function camV(v) {
+  tgt.set(0,0,0); tgtTgt.set(0,0,0);
+  if (v==='top')  { tSph.ph=0.05; tSph.r=90; }
+  if (v==='persp'){ tSph.th=0.55; tSph.ph=1.05; tSph.r=80; }
+  if (v==='iso')  { tSph.th=Math.PI/4; tSph.ph=Math.PI/4; tSph.r=100; }
+}
+window.camV=camV;
+
+canvas.addEventListener('wheel', e=>{
+  tSph.r = Math.max(3, Math.min(200, tSph.r+e.deltaY*.07));
+  e.preventDefault();
+},{passive:false});
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+// ══════════════════════════════════════════════════════
+//  RAYCASTING
+// ══════════════════════════════════════════════════════
+const rc = new THREE.Raycaster();
+const gPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+const mv = new THREE.Vector2();
+
+function getGroundPt(e) {
+  const r=canvas.getBoundingClientRect();
+  mv.x = ((e.clientX-r.left)/r.width)*2-1;
+  mv.y = -((e.clientY-r.top)/r.height)*2+1;
+  rc.setFromCamera(mv, camera);
+  const pt=new THREE.Vector3();
+  return rc.ray.intersectPlane(gPlane, pt) ? pt : null;
+}
+
+// Screen-space distance from a world point to a mouse event
+function screenDist(worldX, worldY, worldZ, e) {
+  const r=canvas.getBoundingClientRect();
+  const v=new THREE.Vector3(worldX,worldY,worldZ).project(camera);
+  if (v.z>1) return Infinity;
+  const sx=(v.x+1)/2*r.width, sy=(1-(v.y+1)/2)*r.height;
+  return Math.hypot(sx-(e.clientX-r.left), sy-(e.clientY-r.top));
+}
+
+// ══════════════════════════════════════════════════════
+//  TERRAIN STATE
+// ══════════════════════════════════════════════════════
+const TR = {
+  pts:[],       // [{x,z}]
+  closed:false,
+  fillMesh:null,
+  edgeLines:[],
+  dotMeshes:[],
+  previewLine:null,
+  area:0, perim:0
+};
+
+function snapT(v){ return Math.round(v*2)/2; }   // 0.5m grid
+
+function edgeLen(a,b){ return Math.sqrt((b.x-a.x)**2+(b.z-a.z)**2); }
+
+function calcArea(pts){
+  let a=0;
+  for(let i=0;i<pts.length;i++){const j=(i+1)%pts.length; a+=pts[i].x*pts[j].z-pts[j].x*pts[i].z;}
+  return Math.abs(a)/2;
+}
+function calcPerim(pts){
+  let p=0;
+  for(let i=0;i<pts.length;i++) p+=edgeLen(pts[i],pts[(i+1)%pts.length]);
+  return p;
+}
+
+function mkDot(x,z,col){
+  const m=new THREE.Mesh(
+    new THREE.SphereGeometry(0.3,8,8),
+    new THREE.MeshBasicMaterial({color:col})
+  );
+  m.position.set(x,0.35,z);
+  return m;
+}
+
+function addPoint(x,z){
+  if(TR.closed) return;
+  TR.pts.push({x,z});
+  const col = TR.pts.length===1 ? 0x00ff88 : 0xffd700;
+  const d=mkDot(x,z,col); scene.add(d); TR.dotMeshes.push(d);
+  rebuildTRMeshes();
+  updateTerrainPanel();
+}
+
+function rebuildEdgeLines(){
+  TR.edgeLines.forEach(l=>scene.remove(l)); TR.edgeLines=[];
+  const pts=TR.pts, n=TR.closed?pts.length:pts.length-1;
+  for(let i=0;i<n;i++){
+    const a=pts[i], b=pts[(i+1)%pts.length];
+    const geo=new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(a.x,.18,a.z), new THREE.Vector3(b.x,.18,b.z)
+    ]);
+    const l=new THREE.Line(geo, new THREE.LineBasicMaterial({color:TR.closed?0xff6600:0xffd700}));
+    scene.add(l); TR.edgeLines.push(l);
+  }
+}
+
+function buildFillMesh(){
+  if(TR.fillMesh){scene.remove(TR.fillMesh);TR.fillMesh=null;}
+  if(TR.pts.length<3) return;
+  const shape=new THREE.Shape();
+  shape.moveTo(TR.pts[0].x, -TR.pts[0].z);
+  for(let i=1;i<TR.pts.length;i++) shape.lineTo(TR.pts[i].x,-TR.pts[i].z);
+  shape.closePath();
+  const geo=new THREE.ShapeGeometry(shape);
+  TR.fillMesh=new THREE.Mesh(geo, new THREE.MeshLambertMaterial({color:0x2a4a1a, side:THREE.DoubleSide}));
+  TR.fillMesh.rotation.x=-Math.PI/2; TR.fillMesh.position.y=0.03;
+  TR.fillMesh.receiveShadow=true; TR.fillMesh.name='terrain';
+  scene.add(TR.fillMesh);
+}
+
+function rebuildTRMeshes(){
+  rebuildEdgeLines();
+  if(TR.closed) buildFillMesh();
+  // sync dot positions
+  TR.pts.forEach((p,i)=>{ if(TR.dotMeshes[i]) TR.dotMeshes[i].position.set(p.x,.35,p.z); });
+  // update preview line
+  if(TR.previewLine){scene.remove(TR.previewLine);TR.previewLine=null;}
+}
+
+function closeTerrain(){
+  if(TR.pts.length<3||TR.closed) return;
+  TR.closed=true;
+  TR.area=calcArea(TR.pts); TR.perim=calcPerim(TR.pts);
+  rebuildTRMeshes();
+  updateTerrainPanel();
+  showStatus(`Terreno fechado — ${TR.area.toFixed(0)} m²`);
+}
+window.closeTerrain=closeTerrain;
+
+function undoPoint(){
+  if(!TR.pts.length||TR.closed) return;
+  TR.pts.pop();
+  const d=TR.dotMeshes.pop(); if(d) scene.remove(d);
+  rebuildTRMeshes(); updateTerrainPanel();
+}
+window.undoPoint=undoPoint;
+
+function resetTerrain(){
+  TR.pts=[]; TR.closed=false;
+  TR.dotMeshes.forEach(d=>scene.remove(d)); TR.dotMeshes=[];
+  TR.edgeLines.forEach(l=>scene.remove(l)); TR.edgeLines=[];
+  if(TR.fillMesh){scene.remove(TR.fillMesh);TR.fillMesh=null;}
+  if(TR.previewLine){scene.remove(TR.previewLine);TR.previewLine=null;}
+  clearZones(); clearElements();
+  updateTerrainPanel();
+}
+window.resetTerrain=resetTerrain;
+
+function setupRect(){
+  const w=parseFloat(document.getElementById('rw').value)||25;
+  const d=parseFloat(document.getElementById('rd').value)||40;
+  resetTerrain();
+  const hw=w/2, hd=d/2;
+  [[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]].forEach(([x,z])=>addPoint(x,z));
+  closeTerrain();
+  // fit camera
+  tSph.r = Math.max(w,d)*2.2; tgt.set(0,0,0); tgtTgt.set(0,0,0);
+}
+window.setupRect=setupRect;
+
+function updateTerrainPanel(){
+  const el=document.getElementById('terrain-stats');
+  const n=TR.pts.length;
+  if(!n){ el.innerHTML='Sem terreno definido.'; return; }
+  const numE=TR.closed?n:n-1;
+  let html=`<div style="font-weight:700;color:#38bdf8;margin-bottom:4px">📐 Lados:</div>`;
+  for(let i=0;i<numE;i++){
+    const j=(i+1)%n;
+    html+=`<div style="display:flex;justify-content:space-between;padding:1px 0">
+      <span style="color:#64748b">Lado ${i+1}</span>
+      <b style="color:#ffd700">${edgeLen(TR.pts[i],TR.pts[j]).toFixed(1)} m</b></div>`;
+  }
+  const area=TR.closed?TR.area:calcArea(TR.pts);
+  const perim=TR.closed?TR.perim:calcPerim(TR.pts);
+  html+=`<div style="margin-top:5px;padding-top:5px;border-top:1px solid #334155">
+    <div style="display:flex;justify-content:space-between"><span style="color:#64748b">Pontos</span><b style="color:#38bdf8">${n}</b></div>
+    <div style="display:flex;justify-content:space-between"><span style="color:#64748b">Área</span><b style="color:#38bdf8">${area.toFixed(0)} m²</b></div>
+    <div style="display:flex;justify-content:space-between"><span style="color:#64748b">Perímetro</span><b style="color:#38bdf8">${perim.toFixed(1)} m</b></div>
+    ${TR.closed?'<div style="color:#00ff88;margin-top:3px;font-size:10px">✅ Terreno fechado</div>':''}
+  </div>`;
+  el.innerHTML=html;
+}
+
+// Preview line while drawing
+function updatePreviewLine(tx,tz){
+  if(TR.closed||!TR.pts.length){ if(TR.previewLine){scene.remove(TR.previewLine);TR.previewLine=null;} return; }
+  const last=TR.pts[TR.pts.length-1];
+  const geo=new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(last.x,.18,last.z), new THREE.Vector3(tx,.18,tz)
+  ]);
+  if(TR.previewLine) scene.remove(TR.previewLine);
+  TR.previewLine=new THREE.Line(geo, new THREE.LineBasicMaterial({color:0xffffff,opacity:.4,transparent:true}));
+  scene.add(TR.previewLine);
+}
+
+// Vertex hover highlight
+let hoverVtxIdx=-1;
+function setHoverVtx(i){
+  if(i===hoverVtxIdx) return;
+  if(hoverVtxIdx!==-1&&TR.dotMeshes[hoverVtxIdx]){
+    TR.dotMeshes[hoverVtxIdx].material.color.setHex(hoverVtxIdx===0?0x00ff88:0xffd700);
+    TR.dotMeshes[hoverVtxIdx].scale.setScalar(1);
+  }
+  hoverVtxIdx=i;
+  if(i!==-1&&TR.dotMeshes[i]){
+    TR.dotMeshes[i].material.color.setHex(0xff4444);
+    TR.dotMeshes[i].scale.setScalar(1.6);
+  }
+}
+
+function findNearestVertex(e, threshold=20){
+  let best=-1, bestD=threshold;
+  TR.pts.forEach((p,i)=>{
+    const d=screenDist(p.x,.35,p.z,e);
+    if(d<bestD){bestD=d;best=i;}
+  });
+  return best;
+}
+
+// ══════════════════════════════════════════════════════
+//  ZONES
+// ══════════════════════════════════════════════════════
+const ZONE_COL  = {mata:0x1a5a00, limpo:0x4aaa1a, agua:0x005f8a};
+const ZONE_NAME = {mata:'Mata nativa', limpo:'Área limpa', agua:'Lago/Água'};
+const zones = [];            // [{type, x1,z1,x2,z2, mesh}]
+let selZoneIdx=-1;
+let zoneTool=null;
+const zoneHandles=[];        // THREE.Mesh corner handles
+
+function setZT(btn,type){
+  document.querySelectorAll('.zone-pill').forEach(b=>b.classList.remove('active'));
+  if(zoneTool===type){zoneTool=null;return;}
+  btn.classList.add('active'); zoneTool=type;
+}
+window.setZT=setZT;
+
+function zoneCorners(z){ return [{x:z.x1,z:z.z1},{x:z.x2,z:z.z1},{x:z.x2,z:z.z2},{x:z.x1,z:z.z2}]; }
+
+function buildZoneMesh(zone){
+  if(zone.mesh) scene.remove(zone.mesh);
+  const w=zone.x2-zone.x1, d=zone.z2-zone.z1;
+  zone.mesh=new THREE.Mesh(
+    new THREE.PlaneGeometry(w,d),
+    new THREE.MeshLambertMaterial({
+      color:ZONE_COL[zone.type], transparent:true, opacity:zone===zones[selZoneIdx]?0.82:0.65, side:THREE.DoubleSide
+    })
+  );
+  zone.mesh.rotation.x=-Math.PI/2;
+  zone.mesh.position.set((zone.x1+zone.x2)/2, 0.07, (zone.z1+zone.z2)/2);
+  scene.add(zone.mesh);
+}
+
+function refreshHandles(){
+  zoneHandles.forEach(h=>scene.remove(h)); zoneHandles.length=0;
+  if(selZoneIdx===-1||!zones[selZoneIdx]) return;
+  zoneCorners(zones[selZoneIdx]).forEach(c=>{
+    const h=new THREE.Mesh(
+      new THREE.SphereGeometry(0.4,8,8),
+      new THREE.MeshBasicMaterial({color:0xff8800})
+    );
+    h.position.set(c.x,.38,c.z); scene.add(h); zoneHandles.push(h);
+  });
+}
+
+function selectZone(idx){
+  if(selZoneIdx!==idx){
+    if(selZoneIdx!==-1&&zones[selZoneIdx]) buildZoneMesh(zones[selZoneIdx]);
+    selZoneIdx=idx;
+    if(idx!==-1) buildZoneMesh(zones[idx]);
+  }
+  refreshHandles();
+  const panel=document.getElementById('zone-sel-panel');
+  const info=document.getElementById('zone-sel-info');
+  if(idx===-1){panel.style.display='none';return;}
+  panel.style.display='block';
+  const z=zones[idx];
+  const w=(z.x2-z.x1).toFixed(1), d=(z.z2-z.z1).toFixed(1);
+  info.innerHTML=`${ZONE_NAME[z.type]}<br>Dimensão: ${w}×${d} m<br>Área: ${(w*d).toFixed(0)} m²`;
+}
+
+function createZone(type,x1,z1,x2,z2){
+  const zone={type, x1:Math.min(x1,x2), z1:Math.min(z1,z2), x2:Math.max(x1,x2), z2:Math.max(z1,z2), mesh:null};
+  buildZoneMesh(zone);
+  zones.push(zone);
+  selectZone(zones.length-1);
+  showStatus(`Zona "${ZONE_NAME[type]}" criada`);
+}
+
+function updateZoneCorner(zi,ci,nx,nz){
+  const z=zones[zi];
+  const SNAP=0.5;
+  nx=Math.round(nx/SNAP)*SNAP; nz=Math.round(nz/SNAP)*SNAP;
+  if(ci===0){z.x1=Math.min(nx,z.x2-0.5);z.z1=Math.min(nz,z.z2-0.5);}
+  if(ci===1){z.x2=Math.max(nx,z.x1+0.5);z.z1=Math.min(nz,z.z2-0.5);}
+  if(ci===2){z.x2=Math.max(nx,z.x1+0.5);z.z2=Math.max(nz,z.z1+0.5);}
+  if(ci===3){z.x1=Math.min(nx,z.x2-0.5);z.z2=Math.max(nz,z.z1+0.5);}
+  buildZoneMesh(z); refreshHandles(); selectZone(zi);
+}
+
+function findNearestZoneHandle(e,threshold=22){
+  if(selZoneIdx===-1) return -1;
+  let best=-1, bestD=threshold;
+  zoneCorners(zones[selZoneIdx]).forEach((c,i)=>{
+    const d=screenDist(c.x,.38,c.z,e);
+    if(d<bestD){bestD=d;best=i;}
+  });
+  return best;
+}
+
+function findZoneAt(x,z){
+  for(let i=zones.length-1;i>=0;i--){
+    const zo=zones[i];
+    if(x>=zo.x1&&x<=zo.x2&&z>=zo.z1&&z<=zo.z2) return i;
+  }
+  return -1;
+}
+
+function deleteSelectedZone(){
+  if(selZoneIdx===-1) return;
+  scene.remove(zones[selZoneIdx].mesh);
+  zones.splice(selZoneIdx,1);
+  selectZone(-1);
+}
+window.deleteSelectedZone=deleteSelectedZone;
+
+function clearZones(){
+  zones.forEach(z=>scene.remove(z.mesh)); zones.length=0; selectZone(-1);
+}
+window.clearZones=clearZones;
+
+// Zone preview while dragging
+let zonePreviewMesh=null;
+function showZonePreview(x1,z1,x2,z2){
+  const w=Math.max(Math.abs(x2-x1),.1), d=Math.max(Math.abs(z2-z1),.1);
+  if(!zonePreviewMesh){
+    zonePreviewMesh=new THREE.Mesh(
+      new THREE.PlaneGeometry(w,d),
+      new THREE.MeshBasicMaterial({color:ZONE_COL[zoneTool],transparent:true,opacity:.45,side:THREE.DoubleSide})
+    );
+    zonePreviewMesh.rotation.x=-Math.PI/2; zonePreviewMesh.position.y=.09;
+    scene.add(zonePreviewMesh);
+  }else{
+    zonePreviewMesh.geometry.dispose();
+    zonePreviewMesh.geometry=new THREE.PlaneGeometry(w,d);
+  }
+  zonePreviewMesh.material.color.setHex(ZONE_COL[zoneTool]);
+  zonePreviewMesh.position.set((x1+x2)/2,.09,(z1+z2)/2);
+}
+function hideZonePreview(){
+  if(zonePreviewMesh){scene.remove(zonePreviewMesh);zonePreviewMesh=null;}
+}
+
+// ══════════════════════════════════════════════════════
+//  ELEMENT CREATORS
+// ══════════════════════════════════════════════════════
+function B(w,h,d,col){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:col}));
+  m.castShadow=true; m.receiveShadow=true; return m;
+}
+const FG=[0x1a5a00,0x2d7a1a,0x0d4a00,0x3d8a2a,0x145e05];
+
+function mkTree(x,z,h=4,r=1.2,tc=0x4a3000,fc=0x1a5c1a){
+  const g=new THREE.Group();
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.12,.20,h*.38,7),new THREE.MeshLambertMaterial({color:tc}));
+  trunk.position.y=h*.19; trunk.castShadow=true; g.add(trunk);
+  const fol=new THREE.Mesh(new THREE.SphereGeometry(r,8,6),new THREE.MeshLambertMaterial({color:fc}));
+  fol.position.y=h*.38+r*.72; fol.castShadow=true; g.add(fol);
+  g.position.set(x,0,z); return g;
+}
+
+const creators={
+  'house-alv':(x,z)=>{
+    const g=new THREE.Group();
+    const body=B(9,3.2,7,0xddd0b8); body.position.y=1.6; g.add(body);
+    const wing=B(4,2.6,4.5,0xccc0a8); wing.position.set(5,1.3,-3.75); g.add(wing);
+    const laje=B(9.8,.28,7.8,0xb0a090); laje.position.y=3.34; g.add(laje);
+    const lajeW=B(4.8,.28,5,0xa09080); lajeW.position.set(5,2.74,-3.75); g.add(lajeW);
+    const gd=B(2.8,2.3,.12,0x777); gd.position.set(-2.2,1.15,3.56); g.add(gd);
+    for(const[ox,oy,oz] of [[1.5,2.1,3.57],[3.8,1.9,3.57]]){const w=B(1.1,.9,.1,0x87ceeb);w.position.set(ox,oy,oz);g.add(w);}
+    for(const px of[-4.2,4.2]){const p=B(.28,3.2,.28,0xccbbaa);p.position.set(px,1.6,3.2);g.add(p);}
+    g.position.set(x,0,z); g.userData={type:'house-alv',label:'Casa Alvenaria'}; return g;
+  },
+  'house-chale':(x,z)=>{
+    const g=new THREE.Group();
+    const base=B(7,2.8,5.5,0x9b7540); base.position.y=1.4; g.add(base);
+    const roof=new THREE.Mesh(new THREE.ConeGeometry(5.4,5.8,4),new THREE.MeshLambertMaterial({color:0x4a2c10}));
+    roof.rotation.y=Math.PI/4; roof.position.y=5.7; roof.castShadow=true; g.add(roof);
+    const porch=B(7.4,.18,2.2,0x3a1e00); porch.position.set(0,3.4,-3.5); g.add(porch);
+    for(const px of[-3,0,3]){const p=B(.18,1.1,.18,0x6b4010);p.position.set(px,.55,-4.5);g.add(p);}
+    const door=B(1,2.2,.1,0x5c3010); door.position.set(0,1.1,2.76); g.add(door);
+    for(const ox of[-2.3,2.3]){const w=B(1,.9,.1,0x87ceeb);w.position.set(ox,1.8,2.77);g.add(w);}
+    g.position.set(x,0,z); g.userData={type:'house-chale',label:'Chalé'}; return g;
+  },
+  'house-container':(x,z)=>{
+    const g=new THREE.Group();
+    const c1=B(12,2.6,2.4,0x3a6a9a); c1.position.y=1.3; g.add(c1);
+    const c2=B(12,2.6,2.4,0x2a4a1a); c2.position.set(0,5.2,0); g.add(c2);
+    const c3=B(5,2.6,2.4,0x8a3a2a); c3.position.set(-3.5,1.3,-2.4); g.add(c3);
+    const ribM=new THREE.MeshLambertMaterial({color:0x2a5a8a});
+    for(let i=-5;i<=5;i+=1.2){const r=new THREE.Mesh(new THREE.BoxGeometry(.07,2.6,2.41),ribM);r.position.set(i,1.3,0);g.add(r);}
+    const deck=B(12.5,.14,2.7,0x5c3a00); deck.position.y=.07; g.add(deck);
+    for(const[ox,side]of[[-3,1],[3,1],[0,-1]]){const w=B(2,1.2,.1,0x87ceeb);w.position.set(ox,1.6,side*1.21);g.add(w);}
+    const door=B(.9,2.1,.1,0x555); door.position.set(5.1,1.05,1.21); g.add(door);
+    g.position.set(x,0,z); g.userData={type:'house-container',label:'Casa Container'}; return g;
+  },
+  'house-trad':(x,z)=>{
+    const g=new THREE.Group();
+    const base=B(10,3,7,0xfaf0e0); base.position.y=1.5; g.add(base);
+    const roof=new THREE.Mesh(new THREE.ConeGeometry(6.5,2.4,4),new THREE.MeshLambertMaterial({color:0xc04040}));
+    roof.rotation.y=Math.PI/4; roof.position.y=4.2; roof.castShadow=true; g.add(roof);
+    const door=B(1.2,2.3,.12,0x6b3a1f); door.position.set(0,1.15,3.56); g.add(door);
+    for(const ox of[-3.5,3.5]){const w=B(1.2,1,.12,0x87ceeb);w.position.set(ox,2,3.56);g.add(w);}
+    const porch=B(10.5,.15,2,0xddd0c0); porch.position.set(0,3.08,4.5); g.add(porch);
+    for(const px of[-4.5,-1.5,1.5,4.5]){const c=B(.2,3,.2,0xfaf0e0);c.position.set(px,1.5,4.5);g.add(c);}
+    g.position.set(x,0,z); g.userData={type:'house-trad',label:'Casa Térrea'}; return g;
+  },
+  tree:(x,z)=>{
+    const h=4+Math.random()*2.5, r=1+Math.random()*.8;
+    const g=mkTree(0,0,h,r,0x5c3317,FG[Math.floor(Math.random()*FG.length)]);
+    g.position.set(x,0,z); g.userData={type:'tree',label:'Árvore'}; return g;
+  },
+  palm:(x,z)=>{
+    const g=new THREE.Group();
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.13,.22,7,8),new THREE.MeshLambertMaterial({color:0x8b6914}));
+    trunk.position.y=3.5; trunk.castShadow=true; g.add(trunk);
+    for(let i=0;i<8;i++){const a=i/8*Math.PI*2;const leaf=B(3.5,.06,.25,0x2d8a2d);leaf.rotation.y=a;leaf.rotation.z=-Math.PI*.18;leaf.position.set(Math.cos(a)*1.6,7.2,Math.sin(a)*1.6);g.add(leaf);}
+    for(let i=0;i<5;i++){const nut=new THREE.Mesh(new THREE.SphereGeometry(.25,6,6),new THREE.MeshLambertMaterial({color:0x7a5a10}));nut.position.set(Math.cos(i*1.26)*.4,7,Math.sin(i*1.26)*.4);g.add(nut);}
+    g.position.set(x,0,z); g.userData={type:'palm',label:'Palmeira'}; return g;
+  },
+  orchard:(x,z)=>{
+    const g=new THREE.Group();
+    const fc=[0xff3333,0xffaa00,0xff6600];
+    for(let ox=-3;ox<=3;ox+=3)for(let oz=-3;oz<=3;oz+=3){
+      g.add(mkTree(ox,oz,2.8,.95,0x5c3317,0x2e8b57));
+      for(let f=0;f<7;f++){const fr=new THREE.Mesh(new THREE.SphereGeometry(.15,6,6),new THREE.MeshLambertMaterial({color:fc[f%3]}));fr.position.set(ox+(Math.random()-.5)*1.4,2+Math.random()*.8,oz+(Math.random()-.5)*1.4);g.add(fr);}
+    }
+    g.position.set(x,0,z); g.userData={type:'orchard',label:'Pomar'}; return g;
+  },
+  garden:(x,z)=>{
+    const g=new THREE.Group();
+    const patch=B(5,.14,4,0x7a5c14); patch.position.y=.07; g.add(patch);
+    const cols=[0xff6b6b,0xffd93d,0x6bcb77,0x4d96ff,0xff6ee7];
+    for(let i=0;i<14;i++){const px=(Math.random()-.5)*4.6,pz=(Math.random()-.5)*3.6;const st=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.42,4),new THREE.MeshLambertMaterial({color:0x2d8a2d}));st.position.set(px,.21,pz);g.add(st);const fl=new THREE.Mesh(new THREE.SphereGeometry(.19,6,6),new THREE.MeshLambertMaterial({color:cols[i%5]}));fl.position.set(px,.48,pz);fl.castShadow=true;g.add(fl);}
+    g.position.set(x,0,z); g.userData={type:'garden',label:'Jardim'}; return g;
+  },
+  shed:(x,z)=>{
+    const g=new THREE.Group();
+    const base=B(10,4,7,0xb0b0b0); base.position.y=2; g.add(base);
+    const roof=B(10.8,.4,7.8,0x555); roof.position.y=4.2; g.add(roof);
+    g.position.set(x,0,z); g.userData={type:'shed',label:'Galpão'}; return g;
+  },
+  pool:(x,z)=>{
+    const g=new THREE.Group();
+    const shell=B(6,.65,4,0xfafafa); shell.position.y=.33; g.add(shell);
+    const water=new THREE.Mesh(new THREE.PlaneGeometry(5.6,3.6),new THREE.MeshLambertMaterial({color:0x0077b6,transparent:true,opacity:.88}));
+    water.rotation.x=-Math.PI/2; water.position.y=.67; g.add(water);
+    g.position.set(x,0,z); g.userData={type:'pool',label:'Piscina'}; return g;
+  },
+  fence:(x,z)=>{
+    const g=new THREE.Group();
+    const mat=new THREE.MeshLambertMaterial({color:0x9b7936});
+    for(let i=0;i<5;i++){const p=new THREE.Mesh(new THREE.BoxGeometry(.12,1.3,.12),mat);p.position.set(-2+i,.65,0);p.castShadow=true;g.add(p);}
+    for(const y of[.42,.95]){const r=new THREE.Mesh(new THREE.BoxGeometry(4,.09,.08),mat);r.position.y=y;g.add(r);}
+    g.position.set(x,0,z); g.userData={type:'fence',label:'Cerca'}; return g;
+  },
+  path:(x,z)=>{
+    const g=new THREE.Group();
+    const road=B(2,.07,6,0x999); road.position.y=.035; g.add(road);
+    g.position.set(x,0,z); g.userData={type:'path',label:'Caminho'}; return g;
+  },
+  tank:(x,z)=>{
+    const g=new THREE.Group();
+    const cyl=new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.2,2.5,16),new THREE.MeshLambertMaterial({color:0x1a6ea8}));
+    cyl.position.y=1.25; cyl.castShadow=true; g.add(cyl);
+    g.position.set(x,0,z); g.userData={type:'tank',label:"Caixa d'água"}; return g;
+  }
+};
+
+// ══════════════════════════════════════════════════════
+//  ELEMENT TOOL
+// ══════════════════════════════════════════════════════
+let currentTool=null, currentTab='terrain';
+const placed=[];
+let lastPlaced=null;
+
+const hoverInd=new THREE.Mesh(
+  new THREE.CircleGeometry(.65,18),
+  new THREE.MeshBasicMaterial({color:0x00eeff,transparent:true,opacity:.42,depthWrite:false,side:THREE.DoubleSide})
+);
+hoverInd.rotation.x=-Math.PI/2; hoverInd.position.y=.12; hoverInd.visible=false;
+scene.add(hoverInd);
+
+function setTool(btn,t){
+  document.querySelectorAll('#tab-elements .btn').forEach(b=>b.classList.remove('active'));
+  if(currentTool===t){currentTool=null;hoverInd.visible=false;return;}
+  btn.classList.add('active'); currentTool=t;
+}
+window.setTool=setTool;
+
+function clearElements(){placed.forEach(o=>scene.remove(o));placed.length=0;lastPlaced=null;}
+window.clearElements=clearElements;
+
+function rotLast(deg){if(lastPlaced) lastPlaced.rotation.y+=deg*Math.PI/180;}
+window.rotLast=rotLast;
+
+// ══════════════════════════════════════════════════════
+//  EDIT STATE MACHINE
+// ══════════════════════════════════════════════════════
+// modes: idle | drag-vertex | draw-zone | drag-zone-corner
+const ES={mode:'idle', vtxIdx:-1, zoneIdx:-1, cornerIdx:-1, startX:0, startZ:0};
+
+let navMode=true; // true = mover câmera com esq; false = editar
+let orbiting=false, orbitLx=0, orbitLy=0;
+let leftDown=false, leftMovedDist=0, leftLx=0, leftLy=0;
+
+function toggleNav(){
+  navMode=!navMode;
+  const btn=document.getElementById('navbtn');
+  if(navMode){
+    btn.textContent='🔓 Navegando';
+    btn.classList.remove('edit-mode');
+  } else {
+    btn.textContent='✏️ Editando';
+    btn.classList.add('edit-mode');
+  }
+}
+window.toggleNav=toggleNav;
+
+function handleLeftDown(e){
+  const pt=getGroundPt(e); if(!pt) return;
+  leftLx=e.clientX; leftLy=e.clientY; leftMovedDist=0;
+
+  if(currentTab==='terrain'){
+    const vi=findNearestVertex(e);
+    if(vi!==-1){ ES.mode='drag-vertex'; ES.vtxIdx=vi; return; }
+  }
+
+  if(currentTab==='zones'){
+    // Check zone corner handles first
+    const ci=findNearestZoneHandle(e);
+    if(ci!==-1){ ES.mode='drag-zone-corner'; ES.zoneIdx=selZoneIdx; ES.cornerIdx=ci; return; }
+    // Check zone body for selection
+    const zi=findZoneAt(pt.x,pt.z);
+    if(zi!==-1){ selectZone(zi); ES.mode='idle'; return; }
+    // Start drawing zone
+    if(zoneTool&&TR.closed){
+      ES.mode='draw-zone'; ES.startX=pt.x; ES.startZ=pt.z;
+      showZonePreview(pt.x,pt.z,pt.x,pt.z); return;
+    }
+  }
+}
+
+function handleLeftMove(e){
+  const pt=getGroundPt(e); if(!pt) return;
+  const dx=e.clientX-leftLx, dy=e.clientY-leftLy;
+  leftMovedDist+=Math.abs(dx)+Math.abs(dy);
+
+  if(ES.mode==='drag-vertex'){
+    const sx=snapT(pt.x), sz=snapT(pt.z);
+    TR.pts[ES.vtxIdx]={x:sx,z:sz};
+    rebuildTRMeshes();
+    if(TR.closed){TR.area=calcArea(TR.pts);TR.perim=calcPerim(TR.pts);}
+    updateTerrainPanel();
+  } else if(ES.mode==='draw-zone'){
+    showZonePreview(ES.startX,ES.startZ,pt.x,pt.z);
+  } else if(ES.mode==='drag-zone-corner'){
+    updateZoneCorner(ES.zoneIdx,ES.cornerIdx,pt.x,pt.z);
+  }
+  leftLx=e.clientX; leftLy=e.clientY;
+}
+
+function handleLeftUp(e){
+  const movedA_lot=leftMovedDist>5;
+
+  if(ES.mode==='draw-zone'){
+    hideZonePreview();
+    const pt=getGroundPt(e);
+    if(pt && zoneTool){
+      const w=Math.abs(pt.x-ES.startX), d=Math.abs(pt.z-ES.startZ);
+      if(w>.5&&d>.5) createZone(zoneTool,ES.startX,ES.startZ,pt.x,pt.z);
+    }
+    ES.mode='idle'; return;
+  }
+
+  if(ES.mode==='drag-vertex'){ ES.mode='idle'; return; }
+  if(ES.mode==='drag-zone-corner'){ ES.mode='idle'; return; }
+
+  // Click (no significant drag) handlers
+  if(!movedA_lot){
+    const pt=getGroundPt(e); if(!pt) return;
+    const sx=Math.round(pt.x), sz=Math.round(pt.z);
+
+    if(currentTab==='terrain'&&!TR.closed){
+      if(TR.pts.length>=3&&edgeLen({x:pt.x,z:pt.z},TR.pts[0])<2){closeTerrain();return;}
+      addPoint(snapT(pt.x),snapT(pt.z));
+    }
+
+    if(currentTab==='zones'&&selZoneIdx===-1){
+      // Deselect if clicking empty space
+    }
+
+    if(currentTab==='elements'){
+      if(!currentTool) return;
+      if(currentTool==='delete'){
+        rc.setFromCamera(mv, camera);
+        const meshes=placed.flatMap(o=>{const m=[];o.traverse(c=>{if(c.isMesh)m.push(c);});return m;});
+        const hits=rc.intersectObjects(meshes);
+        if(hits.length){
+          let obj=hits[0].object;
+          while(obj.parent&&obj.parent!==scene) obj=obj.parent;
+          const i=placed.indexOf(obj);
+          if(i!==-1){scene.remove(obj);placed.splice(i,1);if(lastPlaced===obj)lastPlaced=null;}
+        }
+        return;
+      }
+      if(creators[currentTool]){
+        const obj=creators[currentTool](sx,sz);
+        scene.add(obj); placed.push(obj); lastPlaced=obj;
+        showStatus(`${obj.userData.label} adicionado`);
+      }
+    }
+  }
+  ES.mode='idle';
+}
+
+// ══════════════════════════════════════════════════════
+//  MOUSE EVENTS
+// ══════════════════════════════════════════════════════
+canvas.addEventListener('mousedown', e=>{
+  if(e.button===2 || (e.button===0 && navMode)){
+    orbiting=true; orbitLx=e.clientX; orbitLy=e.clientY;
+    canvas.classList.add('orbit-cursor'); e.preventDefault(); return;
+  }
+  if(e.button===0 && !navMode){ leftDown=true; handleLeftDown(e); }
+});
+
+window.addEventListener('mousemove', e=>{
+  if(orbiting){
+    const dx=e.clientX-orbitLx, dy=e.clientY-orbitLy;
+    tSph.th-=dx*.006;
+    tSph.ph=Math.max(.05,Math.min(Math.PI/2-.01,tSph.ph+dy*.006));
+    orbitLx=e.clientX; orbitLy=e.clientY; return;
+  }
+
+  if(leftDown&&ES.mode!=='idle'){ handleLeftMove(e); return; }
+
+  // Hover effects
+  const pt=getGroundPt(e);
+  if(pt) posText.textContent=`X:${snapT(pt.x)}m  Z:${snapT(pt.z)}m`;
+
+  if(navMode){
+    canvas.style.cursor='grab';
+    hoverInd.visible=false;
+    return;
+  }
+
+  if(currentTab==='terrain'){
+    const vi=findNearestVertex(e);
+    setHoverVtx(vi);
+    canvas.style.cursor=vi!==-1?'move':'crosshair';
+    if(pt) updatePreviewLine(pt.x,pt.z);
+    hoverInd.visible=false;
+  } else if(currentTab==='zones'){
+    const ci=findNearestZoneHandle(e);
+    canvas.style.cursor=ci!==-1?'move':'crosshair';
+    hoverInd.visible=false;
+  } else if(currentTab==='elements'&&currentTool&&currentTool!=='delete'){
+    canvas.style.cursor='crosshair';
+    if(pt){hoverInd.visible=true;hoverInd.position.set(Math.round(pt.x),.12,Math.round(pt.z));}
+  } else {
+    hoverInd.visible=false;
+    canvas.style.cursor='default';
+  }
+});
+
+window.addEventListener('mouseup', e=>{
+  if(e.button===2 || (e.button===0 && navMode)){
+    orbiting=false; canvas.classList.remove('orbit-cursor'); return;
+  }
+  if(e.button===0 && !navMode){ leftDown=false; handleLeftUp(e); }
+});
+
+canvas.addEventListener('dblclick', e=>{
+  if(currentTab==='terrain'&&TR.pts.length>=3&&!TR.closed) closeTerrain();
+});
+
+canvas.addEventListener('mouseleave', ()=>{
+  hoverInd.visible=false; setHoverVtx(-1);
+  if(TR.previewLine){scene.remove(TR.previewLine);TR.previewLine=null;}
+});
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+// Keyboard shortcuts
+window.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){
+    selectZone(-1);
+    hideZonePreview();
+    ES.mode='idle';
+    document.querySelectorAll('#tab-elements .btn').forEach(b=>b.classList.remove('active'));
+    currentTool=null; hoverInd.visible=false;
+  }
+  if((e.key==='Delete'||e.key==='Backspace')&&currentTab==='zones') deleteSelectedZone();
+  if(e.key==='z'&&(e.ctrlKey||e.metaKey)&&currentTab==='terrain') undoPoint();
+});
+
+// ══════════════════════════════════════════════════════
+//  TAB SYSTEM
+// ══════════════════════════════════════════════════════
+function switchTab(name,btn){
+  currentTab=name;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+  hoverInd.visible=false; currentTool=null; ES.mode='idle';
+  document.querySelectorAll('#tab-elements .btn').forEach(b=>b.classList.remove('active'));
+  const msgs={
+    terrain:'Crie um retângulo base ou clique para adicionar pontos. Arraste um ponto para mover.',
+    zones:'Selecione um tipo, arraste para criar zona. Clique na zona para editar cantos.',
+    elements:'Selecione um objeto e clique no terreno para posicionar.'
+  };
+  document.getElementById('topbar').textContent=msgs[name];
+}
+window.switchTab=switchTab;
+
+// ══════════════════════════════════════════════════════
+//  MEASUREMENT LABELS  (terrain edges + zone labels)
+// ══════════════════════════════════════════════════════
+function updateLabels(){
+  mlabels.innerHTML='';
+  const pts=TR.pts;
+  const nE=TR.closed?pts.length:Math.max(0,pts.length-1);
+  for(let i=0;i<nE;i++){
+    const a=pts[i], b=pts[(i+1)%pts.length];
+    const mid=new THREE.Vector3((a.x+b.x)/2,.5,(a.z+b.z)/2);
+    const sp=mid.project(camera);
+    if(sp.z>1) continue;
+    const sx=(sp.x+1)/2*wrap.clientWidth;
+    const sy=(1-(sp.y+1)/2)*wrap.clientHeight;
+    const div=document.createElement('div');
+    div.className='mlabel';
+    div.textContent=edgeLen(a,b).toFixed(1)+'m';
+    div.style.left=sx+'px'; div.style.top=sy+'px';
+    mlabels.appendChild(div);
+  }
+  // Zone labels
+  zones.forEach(z=>{
+    const mx=(z.x1+z.x2)/2, mz=(z.z1+z.z2)/2;
+    const sp=new THREE.Vector3(mx,.2,mz).project(camera);
+    if(sp.z>1) return;
+    const sx=(sp.x+1)/2*wrap.clientWidth;
+    const sy=(1-(sp.y+1)/2)*wrap.clientHeight;
+    const div=document.createElement('div');
+    div.className='zlabel';
+    div.style.background=`rgba(0,0,0,.6)`;
+    div.textContent=ZONE_NAME[z.type];
+    div.style.left=sx+'px'; div.style.top=sy+'px';
+    mlabels.appendChild(div);
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  STATUS
+// ══════════════════════════════════════════════════════
+function showStatus(msg){
+  statusBar.textContent=msg; statusBar.style.display='block';
+  clearTimeout(showStatus._t);
+  showStatus._t=setTimeout(()=>statusBar.style.display='none',2500);
+}
+
+// ══════════════════════════════════════════════════════
+//  RENDER LOOP
+// ══════════════════════════════════════════════════════
+(function loop(){
+  requestAnimationFrame(loop);
+
+  // Suavização da câmera — lerp dos valores atuais para o alvo
+  const D = DAMP;
+  sph.th += (tSph.th - sph.th) * D;
+  sph.ph += (tSph.ph - sph.ph) * D;
+  sph.r  += (tSph.r  - sph.r)  * D;
+  tgt.x  += (tgtTgt.x - tgt.x) * D;
+  tgt.y  += (tgtTgt.y - tgt.y) * D;
+  tgt.z  += (tgtTgt.z - tgt.z) * D;
+  camUpdate();
+
+  updateLabels();
+  renderer.render(scene,camera);
+})();
+</script>
+</body>
+</html>
